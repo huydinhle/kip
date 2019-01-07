@@ -1,0 +1,7 @@
+apiVersion: app.kip.com/v1alpha1
+kind: CanaryDeployment
+metadata:
+  name: huy-canarydeployment
+spec:
+  # Add fields here
+  size: 4
