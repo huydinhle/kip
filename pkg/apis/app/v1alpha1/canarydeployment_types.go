@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -11,6 +12,7 @@ import (
 type CanaryDeploymentSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
+	DeploymentSpec appsv1.DeploymentSpec `json:"deploymentSpec"`
 }
 
 // CanaryDeploymentStatus defines the observed state of CanaryDeployment

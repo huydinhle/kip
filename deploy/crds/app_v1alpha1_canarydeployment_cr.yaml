@@ -3,5 +3,18 @@ kind: CanaryDeployment
 metadata:
   name: huy-canarydeployment
 spec:
-  # Add fields here
-  size: 4
+  deploymentSpec:
+    replicas: 4
+    selector:
+      matchLabels:
+        app: nginx
+    template:
+      metadata:
+        labels:
+          app: nginx
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.7.9
+          ports:
+          - containerPort: 80

@@ -2,10 +2,10 @@ package canarydeployment
 
 import (
 	"context"
+	"fmt"
 
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -102,6 +102,7 @@ func (r *ReconcileCanaryDeployment) Reconcile(request reconcile.Request) (reconc
 
 	// Define a new Deployment object
 	deployment := newDeploymentForCR(instance)
+	fmt.Printf("deployment = %+v\n", deployment)
 
 	// Set CanaryDeployment instance as the owner and controller
 	if err := controllerutil.SetControllerReference(instance, deployment, r.scheme); err != nil {
@@ -140,28 +141,7 @@ func newDeploymentForCR(cr *appv1alpha1.CanaryDeployment) *appsv1.Deployment {
 			Namespace: cr.Namespace,
 			Labels:    labels,
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(1),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      cr.Name + "-pod",
-					Namespace: cr.Namespace,
-					Labels:    labels,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "busybox",
-							Image:   "busybox",
-							Command: []string{"sleep", "3600"},
-						},
-					},
-				},
-			},
-		},
+		Spec: cr.Spec.DeploymentSpec,
 	}
 }
 
