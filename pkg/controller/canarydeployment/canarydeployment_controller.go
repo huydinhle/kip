@@ -6,6 +6,7 @@ import (
 
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -20,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// DEBUG
 var log = logf.Log.WithName("controller_canarydeployment")
 
 /**
@@ -55,6 +57,13 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner CanaryDeployment
 	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &appv1alpha1.CanaryDeployment{},
+	})
+	if err != nil {
+		return err
+	}
+	err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &appv1alpha1.CanaryDeployment{},
 	})
@@ -102,13 +111,19 @@ func (r *ReconcileCanaryDeployment) Reconcile(request reconcile.Request) (reconc
 
 	// Define a new Deployment object
 	deployment := newDeploymentForCR(instance)
-	fmt.Printf("deployment = %+v\n", deployment)
+	service := newServiceForCR(instance)
+	// fmt.Printf("deployment = %+v\n", deployment)
+	fmt.Println("Debug")
 
-	// Set CanaryDeployment instance as the owner and controller
+	// Set CanaryDeployment instance as the owner and controller for Deployment and Service
 	if err := controllerutil.SetControllerReference(instance, deployment, r.scheme); err != nil {
 		return reconcile.Result{}, err
 	}
+	if err := controllerutil.SetControllerReference(instance, service, r.scheme); err != nil {
+		return reconcile.Result{}, err
+	}
 
+	// Handling Deployment
 	// Check if this Deployment already exists
 	found := &appsv1.Deployment{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, found)
@@ -119,14 +134,43 @@ func (r *ReconcileCanaryDeployment) Reconcile(request reconcile.Request) (reconc
 			return reconcile.Result{}, err
 		}
 
-		// Deployment created successfully - don't requeue
-		return reconcile.Result{}, nil
+		// Deployment created successfully - Let's create Service
+		// return reconcile.Result{}, nil
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Deployment already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+	// Deployment already exists - don't requeue, update deployment?
+	reqLogger.Info("Updating Deployment: Deployment already exists", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
+	err = r.client.Update(context.TODO(), deployment)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Handling Service
+	// Check if this Deployment already exists
+	foundService := &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, foundService)
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+		err = r.client.Create(context.TODO(), service)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// Deployment created successfully - Let's create Service
+		// return reconcile.Result{}, nil
+	} else if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// Deployment already exists - don't requeue, update deployment?
+	reqLogger.Info("Updating Service Skipped: Service already exists", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+	// err = r.client.Update(context.TODO(), service)
+	// if err != nil {
+	// 	return reconcile.Result{}, err
+	// }
+
 	return reconcile.Result{}, nil
 }
 
@@ -145,4 +189,47 @@ func newDeploymentForCR(cr *appv1alpha1.CanaryDeployment) *appsv1.Deployment {
 	}
 }
 
-func int32Ptr(i int32) *int32 { return &i }
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newServiceForCR(cr *appv1alpha1.CanaryDeployment) *corev1.Service {
+	labels := map[string]string{
+		"app": cr.Name,
+	}
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment",
+			Namespace: cr.Namespace,
+			Labels:    labels,
+		},
+		Spec: cr.Spec.ServiceSpec,
+	}
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newCanaryDeploymentForCR(cr *appv1alpha1.CanaryDeployment) *appsv1.Deployment {
+	labels := map[string]string{
+		"app": cr.Name + "-canary",
+	}
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment" + "-canary",
+			Namespace: cr.Namespace,
+			Labels:    labels,
+		},
+		Spec: cr.Spec.DeploymentSpec,
+	}
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newCanaryServiceForCR(cr *appv1alpha1.CanaryDeployment) *corev1.Service {
+	labels := map[string]string{
+		"app": cr.Name + "-canary",
+	}
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment" + "-canary",
+			Namespace: cr.Namespace,
+			Labels:    labels,
+		},
+		Spec: cr.Spec.ServiceSpec,
+	}
+}

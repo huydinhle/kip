@@ -89,6 +89,7 @@ func (in *CanaryDeploymentList) DeepCopyObject() runtime.Object {
 func (in *CanaryDeploymentSpec) DeepCopyInto(out *CanaryDeploymentSpec) {
 	*out = *in
 	in.DeploymentSpec.DeepCopyInto(&out.DeploymentSpec)
+	in.ServiceSpec.DeepCopyInto(&out.ServiceSpec)
 	return
 }
 

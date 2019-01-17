@@ -18,3 +18,10 @@ spec:
           image: nginx:1.7.9
           ports:
           - containerPort: 80
+  serviceSpec:
+    selector:
+      app: nginx
+    ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
