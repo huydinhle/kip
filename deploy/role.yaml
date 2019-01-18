@@ -42,5 +42,6 @@ rules:
   - app.kip.com
   resources:
   - '*'
+  - istiocanarydeployments
   verbs:
   - '*'

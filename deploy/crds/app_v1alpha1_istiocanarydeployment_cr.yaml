@@ -1,0 +1,7 @@
+apiVersion: app.kip.com/v1alpha1
+kind: IstioCanaryDeployment
+metadata:
+  name: example-istiocanarydeployment
+spec:
+  # Add fields here
+  size: 3
