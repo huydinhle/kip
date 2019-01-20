@@ -1,6 +1,8 @@
 package v1alpha1
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -11,6 +13,8 @@ import (
 type IstioCanaryDeploymentSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
+	DeploymentSpec appsv1.DeploymentSpec `json:"deploymentSpec"`
+	ServiceSpec    corev1.ServiceSpec    `json:"serviceSpec"`
 }
 
 // IstioCanaryDeploymentStatus defines the observed state of IstioCanaryDeployment

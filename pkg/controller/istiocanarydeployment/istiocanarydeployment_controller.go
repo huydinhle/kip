@@ -3,7 +3,10 @@ package istiocanarydeployment
 import (
 	"context"
 
+	"fmt"
+	logr "github.com/go-logr/logr"
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +56,15 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner IstioCanaryDeployment
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
+	})
+	if err != nil {
+		return err
+	}
+
+	err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
 	})
@@ -99,54 +110,149 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set IstioCanaryDeployment instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
+	// Do regular check for our instance
+	err = validateIstioCanaryDeploymentInstance(instance)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
+	// Define a new Deployment object
+	deployment := newDeploymentForCR(instance)
+	service := newServiceForCR(instance)
+	// fmt.Printf("deployment = %+v\n", deployment)
+	fmt.Println("Debug")
 
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
+	// Set CanaryDeployment instance as the owner and controller for Deployment and Service
+	if err := controllerutil.SetControllerReference(instance, deployment, r.scheme); err != nil {
+		return reconcile.Result{}, err
+	}
+	if err := controllerutil.SetControllerReference(instance, service, r.scheme); err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	// Handling Deployment
+	// Check if this Deployment already exists
+	err = handleNewDeployment(deployment, r.client, reqLogger)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// handleNewService
+	err = handleNewService(service, r.client, reqLogger)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	fmt.Println("\n")
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Pod {
+// We need to work on this, we need to steal this somewhere to do validation for our Canary before
+// installing it in our cluster
+func validateIstioCanaryDeploymentInstance(instance *appv1alpha1.IstioCanaryDeployment) error {
+	return nil
+}
+
+func handleNewDeployment(deployment *appsv1.Deployment, client client.Client, reqLogger logr.Logger) error {
+	var err error
+	foundDeployment := &appsv1.Deployment{}
+	err = client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
+
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new Service", "Service.Namespace", deployment.Namespace, "Service.Name", deployment.Name)
+		err = client.Create(context.TODO(), deployment)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	reqLogger.Info("Updating Deployment: Deployment already exists", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+	err = client.Update(context.TODO(), deployment)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleNewService(service *corev1.Service, client client.Client, reqLogger logr.Logger) error {
+	var err error
+	foundService := &corev1.Service{}
+	err = client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, foundService)
+
+	if err != nil && errors.IsNotFound(err) {
+		reqLogger.Info("Creating a new Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+		err = client.Create(context.TODO(), service)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+
+	// Service already existed so we don't do anything for now
+	reqLogger.Info("Updating Service Skipped: Service already exists", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+
+	return nil
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment) *appsv1.Deployment {
 	labels := map[string]string{
 		"app": cr.Name,
 	}
-	return &corev1.Pod{
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
+			Name:      cr.Name + "-deployment",
 			Namespace: cr.Namespace,
 			Labels:    labels,
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
+		Spec: cr.Spec.DeploymentSpec,
+	}
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newServiceForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Service {
+	labels := map[string]string{
+		"app": cr.Name,
+	}
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment",
+			Namespace: cr.Namespace,
+			Labels:    labels,
 		},
+		Spec: cr.Spec.ServiceSpec,
+	}
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newCanaryDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment) *appsv1.Deployment {
+	labels := map[string]string{
+		"app": cr.Name + "-canary",
+	}
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment" + "-canary",
+			Namespace: cr.Namespace,
+			Labels:    labels,
+		},
+		Spec: cr.Spec.DeploymentSpec,
+	}
+}
+
+// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
+func newCanaryServiceForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Service {
+	labels := map[string]string{
+		"app": cr.Name + "-canary",
+	}
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cr.Name + "-deployment" + "-canary",
+			Namespace: cr.Namespace,
+			Labels:    labels,
+		},
+		Spec: cr.Spec.ServiceSpec,
 	}
 }
