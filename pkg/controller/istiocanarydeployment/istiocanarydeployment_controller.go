@@ -56,21 +56,23 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 
 	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner IstioCanaryDeployment
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
-	})
-	if err != nil {
-		return err
-	}
 
-	err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
-	})
-	if err != nil {
-		return err
-	}
+	// We are going to comment this part out because you don't really want to care about the deployment changes and stuff
+	// err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
+	// 	IsController: true,
+	// 	OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
+	// })
+	// if err != nil {
+	// 	return err
+	// }
+
+	// err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
+	// 	IsController: true,
+	// 	OwnerType:    &appv1alpha1.IstioCanaryDeployment{},
+	// })
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -130,15 +132,14 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 		return reconcile.Result{}, err
 	}
 
-	// Handling Deployment
-	// Check if this Deployment already exists
-	err = handleNewDeployment(deployment, r.client, reqLogger)
+	// handleNewService
+	err = handleNewService(service, r.client, reqLogger)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// handleNewService
-	err = handleNewService(service, r.client, reqLogger)
+	// Handling Deployment
+	err = handleNewDeployment(deployment, r.client, reqLogger, instance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -153,13 +154,13 @@ func validateIstioCanaryDeploymentInstance(instance *appv1alpha1.IstioCanaryDepl
 	return nil
 }
 
-func handleNewDeployment(deployment *appsv1.Deployment, client client.Client, reqLogger logr.Logger) error {
+func handleNewDeployment(deployment *appsv1.Deployment, client client.Client, reqLogger logr.Logger, cr *appv1alpha1.IstioCanaryDeployment) error {
 	var err error
 	foundDeployment := &appsv1.Deployment{}
 	err = client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
 
 	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Service", "Service.Namespace", deployment.Namespace, "Service.Name", deployment.Name)
+		reqLogger.Info("Creating a new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
 		err = client.Create(context.TODO(), deployment)
 		if err != nil {
 			return err
@@ -168,8 +169,28 @@ func handleNewDeployment(deployment *appsv1.Deployment, client client.Client, re
 		return err
 	}
 
-	reqLogger.Info("Updating Deployment: Deployment already exists", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
-	err = client.Update(context.TODO(), deployment)
+	// Deployment already existed, put deployment into canary pipeline
+	return canaryDeploymentHandling(client, cr, reqLogger)
+}
+
+func canaryDeploymentHandling(client client.Client, cr *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger) error {
+	var err error
+	deployment := newCanaryDeploymentForCR(cr)
+	//find if there is a canary running, if there is delete it
+	foundDeployment := &appsv1.Deployment{}
+	err = client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
+
+	// if canary foundDeployment exist delete it
+	reqLogger.Info("Deleteing canary deployment ", "Deployment.Namespace", deployment.Namespace, "deployment.Name", deployment.Name)
+	if foundDeployment.Name != "" {
+		err = client.Delete(context.TODO(), foundDeployment)
+		if err != nil {
+			return err
+		}
+	}
+
+	reqLogger.Info("Creating a new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+	err = client.Create(context.TODO(), deployment)
 	if err != nil {
 		return err
 	}
