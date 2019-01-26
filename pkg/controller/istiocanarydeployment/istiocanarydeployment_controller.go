@@ -48,7 +48,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// Watch for changes to primary resource IstioCanaryDeployment
+	// Watch for changes to primary resource IstioCanaryDeployment, make sure it should just handle CREATE and UPDATE
 	err = c.Watch(&source.Kind{Type: &appv1alpha1.IstioCanaryDeployment{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
@@ -95,6 +95,7 @@ type ReconcileIstioCanaryDeployment struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+	fmt.Println("How many times this shit got called man")
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling IstioCanaryDeployment")
 
@@ -118,33 +119,47 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 		return reconcile.Result{}, err
 	}
 
-	// Define a new Deployment object
-	deployment := newDeploymentForCR(instance)
-	service := newServiceForCR(instance)
-	// fmt.Printf("deployment = %+v\n", deployment)
-	fmt.Println("Debug")
+	// define deployment, service, istio_vs materials
+	deployment := newDeploymentForCR(instance, false)
+	service := newServiceForCR(instance, false)
+	canaryDeployment := newDeploymentForCR(instance, true)
+	canaryService := newServiceForCR(instance, true)
 
-	// Set CanaryDeployment instance as the owner and controller for Deployment and Service
-	if err := controllerutil.SetControllerReference(instance, deployment, r.scheme); err != nil {
+	foundDeployment := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
+
+	if err != nil && errors.IsNotFound(err) {
+		// if deployment DOES NOT exist flow
+		reqLogger.Info("Creating a new Deployment, Service", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
+
+		// delete svc if exist
+		err = deleteService(r.client, reqLogger, service)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// delete isto vs
+
+		//create Deployment and Service first
+		err = createDeploymentAndService(r.client, instance, reqLogger, service, deployment, r.scheme)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// CREATE istio_vs here, remember to set the reference to CR instance
+
+		return reconcile.Result{}, nil
+
+	} else if err != nil {
 		return reconcile.Result{}, err
 	}
-	if err := controllerutil.SetControllerReference(instance, service, r.scheme); err != nil {
-		return reconcile.Result{}, err
-	}
 
-	// handleNewService
-	err = handleNewService(service, r.client, reqLogger)
+	// if deployment DOES exist, create Canary Materials
+	err = createCanaryMaterials(r.client, instance, reqLogger, canaryDeployment, canaryService, r.scheme)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// Handling Deployment
-	err = handleNewDeployment(deployment, r.client, reqLogger, instance)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	fmt.Println("\n")
 	return reconcile.Result{}, nil
 }
 
@@ -154,78 +169,42 @@ func validateIstioCanaryDeploymentInstance(instance *appv1alpha1.IstioCanaryDepl
 	return nil
 }
 
-func handleNewDeployment(deployment *appsv1.Deployment, client client.Client, reqLogger logr.Logger, cr *appv1alpha1.IstioCanaryDeployment) error {
-	var err error
-	foundDeployment := &appsv1.Deployment{}
-	err = client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
-
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
-		err = client.Create(context.TODO(), deployment)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
-		return err
-	}
-
-	// Deployment already existed, put deployment into canary pipeline
-	return canaryDeploymentHandling(client, cr, reqLogger)
-}
-
-func canaryDeploymentHandling(client client.Client, cr *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger) error {
-	var err error
-	deployment := newCanaryDeploymentForCR(cr)
-	//find if there is a canary running, if there is delete it
-	foundDeployment := &appsv1.Deployment{}
-	err = client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
-
-	// if canary foundDeployment exist delete it
-	reqLogger.Info("Deleteing canary deployment ", "Deployment.Namespace", deployment.Namespace, "deployment.Name", deployment.Name)
-	if foundDeployment.Name != "" {
-		err = client.Delete(context.TODO(), foundDeployment)
-		if err != nil {
-			return err
-		}
-	}
-
-	reqLogger.Info("Creating a new Deployment", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
-	err = client.Create(context.TODO(), deployment)
+func createCanaryMaterials(client client.Client, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, canaryDeployment *appsv1.Deployment, canaryService *corev1.Service, scheme *runtime.Scheme) error {
+	// Delete existing Canary Deployment
+	err := deleteDeployment(client, reqLogger, canaryDeployment)
 	if err != nil {
 		return err
 	}
-	return nil
-}
 
-func handleNewService(service *corev1.Service, client client.Client, reqLogger logr.Logger) error {
-	var err error
-	foundService := &corev1.Service{}
-	err = client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, foundService)
-
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
-		err = client.Create(context.TODO(), service)
-		if err != nil {
-			return err
-		}
-	} else if err != nil {
+	// Delete existing Canary Service
+	err = deleteService(client, reqLogger, canaryService)
+	if err != nil {
 		return err
 	}
 
-	// Service already existed so we don't do anything for now
-	reqLogger.Info("Updating Service Skipped: Service already exists", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+	//create Deployment and Service for Canary
+	err = createDeploymentAndService(client, instance, reqLogger, canaryService, canaryDeployment, scheme)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
-func newDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment) *appsv1.Deployment {
-	labels := map[string]string{
-		"app": cr.Name,
+func newDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment, canary bool) *appsv1.Deployment {
+	name := cr.Name
+	if canary {
+		name = name + "-canary"
 	}
+
+	labels := map[string]string{
+		"app": name,
+	}
+
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-deployment",
+			Name:      name + "-deployment",
 			Namespace: cr.Namespace,
 			Labels:    labels,
 		},
@@ -234,13 +213,19 @@ func newDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment) *appsv1.Deploymen
 }
 
 // newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
-func newServiceForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Service {
-	labels := map[string]string{
-		"app": cr.Name,
+func newServiceForCR(cr *appv1alpha1.IstioCanaryDeployment, canary bool) *corev1.Service {
+	name := cr.Name
+	if canary {
+		name = name + "-canary"
 	}
+
+	labels := map[string]string{
+		"app": name,
+	}
+
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-deployment",
+			Name:      name + "-service",
 			Namespace: cr.Namespace,
 			Labels:    labels,
 		},
@@ -248,32 +233,58 @@ func newServiceForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Service {
 	}
 }
 
-// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
-func newCanaryDeploymentForCR(cr *appv1alpha1.IstioCanaryDeployment) *appsv1.Deployment {
-	labels := map[string]string{
-		"app": cr.Name + "-canary",
+func createDeploymentAndService(client client.Client, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, service *corev1.Service, deployment *appsv1.Deployment, scheme *runtime.Scheme) error {
+	reqLogger.Info("Creating a new Deployment and Service", "Namespace", deployment.Namespace, "Name", deployment.Name)
+
+	if err := controllerutil.SetControllerReference(instance, deployment, scheme); err != nil {
+		return err
 	}
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-deployment" + "-canary",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: cr.Spec.DeploymentSpec,
+
+	if err := controllerutil.SetControllerReference(instance, service, scheme); err != nil {
+		return err
 	}
+
+	if err := client.Create(context.TODO(), service); err != nil {
+		return err
+	}
+
+	if err := client.Create(context.TODO(), deployment); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// newDeploymentForCR returns a busybox pod with the same name/namespace as the cr
-func newCanaryServiceForCR(cr *appv1alpha1.IstioCanaryDeployment) *corev1.Service {
-	labels := map[string]string{
-		"app": cr.Name + "-canary",
+func deleteService(client client.Client, reqLogger logr.Logger, service *corev1.Service) error {
+	reqLogger.Info("Deleting Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
+
+	foundService := &corev1.Service{}
+	err := client.Get(context.TODO(), types.NamespacedName{Name: service.Name, Namespace: service.Namespace}, foundService)
+
+	if err != nil && errors.IsNotFound(err) {
+		return nil
 	}
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-deployment" + "-canary",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: cr.Spec.ServiceSpec,
+
+	if err := client.Delete(context.TODO(), service); err != nil {
+		return err
 	}
+
+	return nil
+}
+
+func deleteDeployment(client client.Client, reqLogger logr.Logger, deployment *appsv1.Deployment) error {
+	reqLogger.Info("Deleting Deployment", "Namespace", deployment.Namespace, "Name", deployment.Name)
+
+	foundDeployment := &appsv1.Deployment{}
+	err := client.Get(context.TODO(), types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
+
+	if err != nil && errors.IsNotFound(err) {
+		return nil
+	}
+
+	if err := client.Delete(context.TODO(), deployment); err != nil {
+		return err
+	}
+
+	return nil
 }
