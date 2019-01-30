@@ -185,6 +185,7 @@ func (in *IstioCanaryDeploymentSpec) DeepCopyInto(out *IstioCanaryDeploymentSpec
 	*out = *in
 	in.DeploymentSpec.DeepCopyInto(&out.DeploymentSpec)
 	in.ServiceSpec.DeepCopyInto(&out.ServiceSpec)
+	in.VsSpec.DeepCopyInto(&out.VsSpec)
 	return
 }
 

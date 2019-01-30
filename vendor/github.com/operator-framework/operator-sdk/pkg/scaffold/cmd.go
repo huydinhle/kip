@@ -48,7 +48,7 @@ import (
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
-	"github.com/operator-framework/operator-sdk/pkg/ready"
+	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -57,12 +57,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
 
+// Change below variables to serve metrics on different host or port.
+var (
+    metricsHost = "0.0.0.0"
+    metricsPort int32 = 8383
+)
 var log = logf.Log.WithName("cmd")
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
 	log.Info(fmt.Sprintf("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH))
-	log.Info(fmt.Sprintf("operator-sdk Version: %v", sdkVersion.Version))
+	log.Info(fmt.Sprintf("Version of operator-sdk: %v", sdkVersion.Version))
 }
 
 func main() {
@@ -78,7 +83,7 @@ func main() {
 
 	namespace, err := k8sutil.GetWatchNamespace()
 	if err != nil {
-		log.Error(err, "failed to get watch namespace")
+		log.Error(err, "Failed to get watch namespace")
 		os.Exit(1)
 	}
 
@@ -88,20 +93,21 @@ func main() {
 		log.Error(err, "")
 		os.Exit(1)
 	}
+	
+	ctx := context.TODO()
 
 	// Become the leader before proceeding
-	leader.Become(context.TODO(), "{{ .ProjectName }}-lock")
-
-	r := ready.NewFileReady()
-	err = r.Set()
+	err = leader.Become(ctx, "{{ .ProjectName }}-lock")
 	if err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}
-	defer r.Unset()
 
 	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{Namespace: namespace})
+	mgr, err := manager.New(cfg, manager.Options{
+		Namespace:          namespace,
+		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+	})	
 	if err != nil {
 		log.Error(err, "")
 		os.Exit(1)
@@ -121,11 +127,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create Service object to expose the metrics port.
+	_, err = metrics.ExposeMetricsPort(ctx, metricsPort)
+	if err != nil {
+		log.Info(err.Error())
+	}
+
 	log.Info("Starting the Cmd.")
 
 	// Start the Cmd
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
-		log.Error(err, "manager exited non-zero")
+		log.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
 }

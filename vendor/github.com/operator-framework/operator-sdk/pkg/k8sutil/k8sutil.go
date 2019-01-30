@@ -20,9 +20,6 @@ import (
 	"os"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	intstr "k8s.io/apimachinery/pkg/util/intstr"
 	discovery "k8s.io/client-go/discovery"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
@@ -38,18 +35,21 @@ func GetWatchNamespace() (string, error) {
 	return ns, nil
 }
 
+// errNoNS indicates that a namespace could not be found for the current
+// environment
+var ErrNoNamespace = fmt.Errorf("namespace not found for current environment")
+
 // GetOperatorNamespace returns the namespace the operator should be running in.
 func GetOperatorNamespace() (string, error) {
 	nsBytes, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.V(1).Info("current namespace not found")
-			return "", fmt.Errorf("namespace not found for current environment")
+			return "", ErrNoNamespace
 		}
 		return "", err
 	}
 	ns := strings.TrimSpace(string(nsBytes))
-	log.V(1).Info("found namespace", "Namespace", ns)
+	log.V(1).Info("Found namespace", "Namespace", ns)
 	return ns, nil
 }
 
@@ -63,44 +63,6 @@ func GetOperatorName() (string, error) {
 		return "", fmt.Errorf("%s must not be empty", OperatorNameEnvVar)
 	}
 	return operatorName, nil
-}
-
-// InitOperatorService return the static service which expose operator metrics
-func InitOperatorService() (*v1.Service, error) {
-	operatorName, err := GetOperatorName()
-	if err != nil {
-		return nil, err
-	}
-	namespace, err := GetOperatorNamespace()
-	if err != nil {
-		return nil, err
-	}
-	service := &v1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      operatorName,
-			Namespace: namespace,
-			Labels:    map[string]string{"name": operatorName},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
-				{
-					Port:     PrometheusMetricsPort,
-					Protocol: v1.ProtocolTCP,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.String,
-						StrVal: PrometheusMetricsPortName,
-					},
-					Name: PrometheusMetricsPortName,
-				},
-			},
-			Selector: map[string]string{"name": operatorName},
-		},
-	}
-	return service, nil
 }
 
 // ResourceExists returns true if the given resource kind exists

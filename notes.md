@@ -1,5 +1,12 @@
 # The flows
 
+# Implementing
+- VirtualService struct inside of IstioCanaryDeployment --> make sure it build
+- Operator can create IstioCanaryDeployment inside of the cluster --> install istio inside of minikube, make sure operator can create virtual service
+- Include Prometheus-Client inside of the operator-code to query stuff from it
+- Install prometheus operator with only prometheus-operator and prometheus
+- Do some sample Query
+
 ### Reconcile method
 1. **Receive** Reconcile Request which has IstioCanaryDeployment instance Whenever there is an operations add/update/delete happens to our istiocanarydeployment
 2. **Validate** the IstioCanaryDeployment instance
