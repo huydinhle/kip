@@ -6,6 +6,8 @@ import (
 	"fmt"
 	logr "github.com/go-logr/logr"
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
+	istiov1alpha3 "istio.io/api/kube/apis/networking/v1alpha3"
+	istioclient "istio.io/api/kube/clientset/versioned/typed/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -132,21 +134,17 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 		// if deployment DOES NOT exist flow
 		reqLogger.Info("Creating a new Deployment, Service", "Deployment.Namespace", deployment.Namespace, "Deployment.Name", deployment.Name)
 
-		// delete svc if exist
-		err = deleteService(r.client, reqLogger, service)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// delete isto vs
-
 		//create Deployment and Service first
 		err = createDeploymentAndService(r.client, instance, reqLogger, service, deployment, r.scheme)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
 
-		// CREATE istio_vs here, remember to set the reference to CR instance
+		//update VirtualService
+		err = updateVirtualService(r.client, instance, reqLogger, r.scheme)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 
 		return reconcile.Result{}, nil
 
@@ -255,6 +253,29 @@ func createDeploymentAndService(client client.Client, instance *appv1alpha1.Isti
 	return nil
 }
 
+func updateVirtualService(client client.Client, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, scheme *runtime.Scheme) error {
+	name := instance.Spec.VSName
+	namespace := instance.Namespace
+
+	istioclient
+
+	reqLogger.Info("Updating the linked VirtualService", "Namespace", namespace, "Name", name)
+	foundVS := &istiov1alpha3.VirtualService{}
+	err := client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, foundVS)
+
+	if err != nil && errors.IsNotFound(err) {
+		return nil
+	}
+
+	foundVS.Labels["kip"] = "canary"
+
+	if err := client.Update(context.TODO(), foundVS); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func deleteService(client client.Client, reqLogger logr.Logger, service *corev1.Service) error {
 	reqLogger.Info("Deleting Service", "Service.Namespace", service.Namespace, "Service.Name", service.Name)
 
@@ -283,6 +304,23 @@ func deleteDeployment(client client.Client, reqLogger logr.Logger, deployment *a
 	}
 
 	if err := client.Delete(context.TODO(), deployment); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func deleteVirtualService(client client.Client, reqLogger logr.Logger, vs *istiov1alpha3.VirtualService) error {
+	reqLogger.Info("Deleting VirtualService", "Namespace", vs.Namespace, "Name", vs.Name)
+
+	foundVS := &istiov1alpha3.VirtualService{}
+	err := client.Get(context.TODO(), types.NamespacedName{Name: vs.Name, Namespace: vs.Namespace}, foundVS)
+
+	if err != nil && errors.IsNotFound(err) {
+		return nil
+	}
+
+	if err := client.Delete(context.TODO(), vs); err != nil {
 		return err
 	}
 

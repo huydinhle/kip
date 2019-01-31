@@ -45,3 +45,9 @@ rules:
   - istiocanarydeployments
   verbs:
   - '*'
+- apiGroups:
+  - networking.istio.io
+  resources:
+  - '*'
+  verbs:
+  - '*'

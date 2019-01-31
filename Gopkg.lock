@@ -109,6 +109,14 @@
   version = "v0.18.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:087650ef49bc1377368b98858ecd5db88e20c91df046c917fdcdd87298698c18"
+  name = "github.com/gogo/googleapis"
+  packages = ["google/rpc"]
+  pruneopts = "NT"
+  revision = "8558fb44d2f1fc223118afc694129d2c2d2924d1"
+
+[[projects]]
   digest = "1:932970e69f16e127aa0653b8263ae588cd127fa53273e19ba44332902c9826f2"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -400,19 +408,21 @@
   revision = "b01c7a72566457eb1420261cdafef86638fc3861"
 
 [[projects]]
-  branch = "master"
-  digest = "1:4010b78f0ab4fcc3ff81e30e6dba92fa68b8520df8dd21b393481fd791360b21"
+  branch = "release-branch.go1.10"
+  digest = "1:dd03289ba264de428e38dd8d56528b7ee127f73878aed88a856d8202fdd2d061"
   name = "golang.org/x/net"
   packages = [
     "context",
     "context/ctxhttp",
-    "http/httpguts",
     "http2",
     "http2/hpack",
     "idna",
+    "internal/timeseries",
+    "lex/httplex",
+    "trace",
   ]
   pruneopts = "NT"
-  revision = "d26f9f9a57f3fab6a695bec0d84433c2c50f8bbf"
+  revision = "0ed95abb35c445290478a5348a7b38bb154135fd"
 
 [[projects]]
   branch = "master"
@@ -512,6 +522,54 @@
   version = "v1.4.0"
 
 [[projects]]
+  branch = "master"
+  digest = "1:cf74e6d34fa23c1b570781e2f064657b996c40dce8c2adda9d451aba24029c65"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  pruneopts = "NT"
+  revision = "8ac453e89fca495c0d17f98932642f392e2a11f3"
+
+[[projects]]
+  digest = "1:864b8b2ca144da1f18e3379338e2688c7735f60fbc2f0e4f7b9cc348f1c08eed"
+  name = "google.golang.org/grpc"
+  packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "binarylog/grpc_binarylog_v1",
+    "codes",
+    "connectivity",
+    "credentials",
+    "credentials/internal",
+    "encoding",
+    "encoding/proto",
+    "grpclog",
+    "internal",
+    "internal/backoff",
+    "internal/binarylog",
+    "internal/channelz",
+    "internal/envconfig",
+    "internal/grpcrand",
+    "internal/grpcsync",
+    "internal/syscall",
+    "internal/transport",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "stats",
+    "status",
+    "tap",
+  ]
+  pruneopts = "NT"
+  revision = "a02b0774206b209466313a0b525d2c738fe407eb"
+  version = "v1.18.0"
+
+[[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
   name = "gopkg.in/inf.v0"
   packages = ["."]
@@ -532,8 +590,17 @@
   digest = "1:24013d02bdeec49ca9a37682fb0b5f96110e7829092bf762592e9334f25c5f27"
   name = "istio.io/api"
   packages = [
+    "authentication/v1alpha1",
+    "kube/apis/authentication/v1alpha1",
+    "kube/apis/config/v1alpha2",
     "kube/apis/networking/v1alpha3",
+    "kube/apis/rbac/v1alpha1",
+    "kube/clientset/versioned/scheme",
+    "mixer/v1",
+    "mixer/v1/config/client",
     "networking/v1alpha3",
+    "policy/v1beta1",
+    "rbac/v1alpha1",
     "util",
   ]
   pruneopts = "NT"
@@ -825,6 +892,8 @@
     "github.com/operator-framework/operator-sdk/pkg/ready",
     "github.com/operator-framework/operator-sdk/version",
     "istio.io/api/kube/apis/networking/v1alpha3",
+    "istio.io/api/kube/clientset/versioned/scheme",
+    "istio.io/api/networking/v1alpha3",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",

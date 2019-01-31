@@ -7,6 +7,8 @@
 - Install prometheus operator with only prometheus-operator and prometheus
 - Do some sample Query
 
+### Isitio-client is currently not completed because of the schema lived inside the repo don't have all json tags in it, we will have to switch it off and use the name of virtualservice instead
+
 ### Reconcile method
 1. **Receive** Reconcile Request which has IstioCanaryDeployment instance Whenever there is an operations add/update/delete happens to our istiocanarydeployment
 2. **Validate** the IstioCanaryDeployment instance
