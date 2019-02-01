@@ -27,6 +27,23 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:0d44f8642289d9cee6d5da8e148c70fa4950ddb5ab9f1b28dae12d775924fb56"
+  name = "github.com/aspenmesh/istio-client-go"
+  packages = [
+    "pkg/apis/authentication",
+    "pkg/apis/authentication/v1alpha1",
+    "pkg/apis/networking",
+    "pkg/apis/networking/v1alpha3",
+    "pkg/client/clientset/versioned",
+    "pkg/client/clientset/versioned/scheme",
+    "pkg/client/clientset/versioned/typed/authentication/v1alpha1",
+    "pkg/client/clientset/versioned/typed/networking/v1alpha3",
+  ]
+  pruneopts = "NT"
+  revision = "c2ad69c03a021878ea49d4c611311a7fd592522b"
+
+[[projects]]
+  branch = "master"
   digest = "1:c819830f4f5ef85874a90ac3cbcc96cd322c715f5c96fbe4722eacd3dafbaa07"
   name = "github.com/beorn7/perks"
   packages = ["quantile"]
@@ -107,14 +124,6 @@
   pruneopts = "NT"
   revision = "1d29f06aebd59ccdf11ae04aa0334ded96e2d909"
   version = "v0.18.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:087650ef49bc1377368b98858ecd5db88e20c91df046c917fdcdd87298698c18"
-  name = "github.com/gogo/googleapis"
-  packages = ["google/rpc"]
-  pruneopts = "NT"
-  revision = "8558fb44d2f1fc223118afc694129d2c2d2924d1"
 
 [[projects]]
   digest = "1:932970e69f16e127aa0653b8263ae588cd127fa53273e19ba44332902c9826f2"
@@ -417,9 +426,7 @@
     "http2",
     "http2/hpack",
     "idna",
-    "internal/timeseries",
     "lex/httplex",
-    "trace",
   ]
   pruneopts = "NT"
   revision = "0ed95abb35c445290478a5348a7b38bb154135fd"
@@ -522,54 +529,6 @@
   version = "v1.4.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:cf74e6d34fa23c1b570781e2f064657b996c40dce8c2adda9d451aba24029c65"
-  name = "google.golang.org/genproto"
-  packages = ["googleapis/rpc/status"]
-  pruneopts = "NT"
-  revision = "8ac453e89fca495c0d17f98932642f392e2a11f3"
-
-[[projects]]
-  digest = "1:864b8b2ca144da1f18e3379338e2688c7735f60fbc2f0e4f7b9cc348f1c08eed"
-  name = "google.golang.org/grpc"
-  packages = [
-    ".",
-    "balancer",
-    "balancer/base",
-    "balancer/roundrobin",
-    "binarylog/grpc_binarylog_v1",
-    "codes",
-    "connectivity",
-    "credentials",
-    "credentials/internal",
-    "encoding",
-    "encoding/proto",
-    "grpclog",
-    "internal",
-    "internal/backoff",
-    "internal/binarylog",
-    "internal/channelz",
-    "internal/envconfig",
-    "internal/grpcrand",
-    "internal/grpcsync",
-    "internal/syscall",
-    "internal/transport",
-    "keepalive",
-    "metadata",
-    "naming",
-    "peer",
-    "resolver",
-    "resolver/dns",
-    "resolver/passthrough",
-    "stats",
-    "status",
-    "tap",
-  ]
-  pruneopts = "NT"
-  revision = "a02b0774206b209466313a0b525d2c738fe407eb"
-  version = "v1.18.0"
-
-[[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
   name = "gopkg.in/inf.v0"
   packages = ["."]
@@ -586,26 +545,15 @@
   version = "v2.2.2"
 
 [[projects]]
-  branch = "istio-8772"
-  digest = "1:24013d02bdeec49ca9a37682fb0b5f96110e7829092bf762592e9334f25c5f27"
+  branch = "release-1.0"
+  digest = "1:a0e58b79a0e0d28fb2c232cb7c7ec7d82c722081dda514f77f020286db17d047"
   name = "istio.io/api"
   packages = [
     "authentication/v1alpha1",
-    "kube/apis/authentication/v1alpha1",
-    "kube/apis/config/v1alpha2",
-    "kube/apis/networking/v1alpha3",
-    "kube/apis/rbac/v1alpha1",
-    "kube/clientset/versioned/scheme",
-    "mixer/v1",
-    "mixer/v1/config/client",
     "networking/v1alpha3",
-    "policy/v1beta1",
-    "rbac/v1alpha1",
-    "util",
   ]
   pruneopts = "NT"
-  revision = "d4a854615dc6e0d68c61d55dc8ff28bff7efd084"
-  source = "https://github.com/rcernich/istio-api.git"
+  revision = "6bf9d6613f65c2754a3d90ae916e1806e9d74175"
 
 [[projects]]
   digest = "1:b3f8152a68d73095a40fdcf329a93fc42e8eadb3305171df23fdb6b4e41a6417"
@@ -886,14 +834,13 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/aspenmesh/istio-client-go/pkg/client/clientset/versioned",
+    "github.com/aspenmesh/istio-client-go/pkg/client/clientset/versioned/scheme",
     "github.com/go-logr/logr",
     "github.com/operator-framework/operator-sdk/pkg/k8sutil",
     "github.com/operator-framework/operator-sdk/pkg/leader",
     "github.com/operator-framework/operator-sdk/pkg/ready",
     "github.com/operator-framework/operator-sdk/version",
-    "istio.io/api/kube/apis/networking/v1alpha3",
-    "istio.io/api/kube/clientset/versioned/scheme",
-    "istio.io/api/networking/v1alpha3",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
@@ -902,6 +849,7 @@
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
+    "k8s.io/client-go/rest",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/code-generator/cmd/conversion-gen",
     "k8s.io/code-generator/cmd/deepcopy-gen",

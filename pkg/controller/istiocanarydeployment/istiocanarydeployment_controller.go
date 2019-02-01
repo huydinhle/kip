@@ -6,14 +6,16 @@ import (
 	"fmt"
 	logr "github.com/go-logr/logr"
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
-	istiov1alpha3 "istio.io/api/kube/apis/networking/v1alpha3"
-	istioclient "istio.io/api/kube/clientset/versioned/typed/networking/v1alpha3"
+	// istiov1alpha3 "istio.io/api/kube/apis/networking/v1alpha3"
+	istioclient "github.com/aspenmesh/istio-client-go/pkg/client/clientset/versioned"
+	istiov1alpha3 "istio.io/api/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	rest "k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,7 +41,7 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileIstioCanaryDeployment{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+	return &ReconcileIstioCanaryDeployment{client: mgr.GetClient(), scheme: mgr.GetScheme(), config: mgr.GetConfig()}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -87,6 +89,7 @@ type ReconcileIstioCanaryDeployment struct {
 	// that reads objects from the cache and writes to the apiserver
 	client client.Client
 	scheme *runtime.Scheme
+	config *rest.Config
 }
 
 // Reconcile reads that state of the cluster for a IstioCanaryDeployment object and makes changes based on the state read
@@ -141,7 +144,12 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 		}
 
 		//update VirtualService
-		err = updateVirtualService(r.client, instance, reqLogger, r.scheme)
+		istioClient, err := istioclient.NewForConfig(r.config)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		err = updateVirtualService(istioClient, instance, reqLogger, r.scheme)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -253,23 +261,31 @@ func createDeploymentAndService(client client.Client, instance *appv1alpha1.Isti
 	return nil
 }
 
-func updateVirtualService(client client.Client, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, scheme *runtime.Scheme) error {
+func updateVirtualService(client *istioclient.Clientset, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, scheme *runtime.Scheme) error {
 	name := instance.Spec.VSName
 	namespace := instance.Namespace
 
-	istioclient
+	vsClient := client.NetworkingV1alpha3().VirtualServices(namespace)
 
-	reqLogger.Info("Updating the linked VirtualService", "Namespace", namespace, "Name", name)
-	foundVS := &istiov1alpha3.VirtualService{}
-	err := client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: namespace}, foundVS)
-
-	if err != nil && errors.IsNotFound(err) {
-		return nil
+	reqLogger.Info("Getting the linked VirtualService", "Namespace", namespace, "Name", name)
+	foundVS, err := vsClient.Get(name, metav1.GetOptions{})
+	if err != nil {
+		return err
 	}
 
-	foundVS.Labels["kip"] = "canary"
+	reqLogger.Info("Updating the linked VirtualService", "Namespace", namespace, "Name", name)
+	fmt.Println("foundVS is ")
+	fmt.Printf("foundVS = %+v\n", foundVS)
 
-	if err := client.Update(context.TODO(), foundVS); err != nil {
+	if foundVS.Labels == nil {
+		foundVS.Labels = make(map[string]string)
+	}
+	foundVS.Labels["kip"] = "canary"
+	// fmt.Println("matchhhhhhhh is", foundVS.Spec.Http[0].Match[0].Uri)
+	foundVS.Spec.Http[0].Match[0].Uri.MatchType = &istiov1alpha3.StringMatch_Prefix{Prefix: "/"}
+
+	foundVS, err = vsClient.Update(foundVS)
+	if err != nil {
 		return err
 	}
 
@@ -310,19 +326,19 @@ func deleteDeployment(client client.Client, reqLogger logr.Logger, deployment *a
 	return nil
 }
 
-func deleteVirtualService(client client.Client, reqLogger logr.Logger, vs *istiov1alpha3.VirtualService) error {
-	reqLogger.Info("Deleting VirtualService", "Namespace", vs.Namespace, "Name", vs.Name)
+// func deleteVirtualService(client client.Client, reqLogger logr.Logger, vs *istiov1alpha3.VirtualService) error {
+// 	reqLogger.Info("Deleting VirtualService", "Namespace", vs.Namespace, "Name", vs.Name)
 
-	foundVS := &istiov1alpha3.VirtualService{}
-	err := client.Get(context.TODO(), types.NamespacedName{Name: vs.Name, Namespace: vs.Namespace}, foundVS)
+// 	foundVS := &istiov1alpha3.VirtualService{}
+// 	err := client.Get(context.TODO(), types.NamespacedName{Name: vs.Name, Namespace: vs.Namespace}, foundVS)
 
-	if err != nil && errors.IsNotFound(err) {
-		return nil
-	}
+// 	if err != nil && errors.IsNotFound(err) {
+// 		return nil
+// 	}
 
-	if err := client.Delete(context.TODO(), vs); err != nil {
-		return err
-	}
+// 	if err := client.Delete(context.TODO(), vs); err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }

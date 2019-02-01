@@ -16,4 +16,4 @@ spec:
     route:
     - destination:
         host: kube-prometheus-grafana.monitoring.svc.cluster.local
-    timeout: 60s
+    # timeout: 60s

@@ -53,11 +53,6 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-// +kubetype-gen
-// +kubetype-gen:groupVersion=config.istio.io/v1alpha2
-// +genclient
-// +k8s:deepcopy-gen=true
-
 // HTTPAPISpec defines the canonical configuration for generating
 // API-related attributes from HTTP requests based on the method and
 // uri templated path matches. It is sufficient for defining the API
@@ -80,34 +75,23 @@ const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 //   namespace: default
 // spec:
 //   attributes:
-//     attributes:
-//       api.service:
-//         stringValue: petstore.swagger.io
-//       api.version:
-//         stringValue: 1.0.0
+//     api.service: petstore.swagger.io
+//     api.version: 1.0.0
 //   patterns:
 //   - attributes:
-//       attributes:
-//         api.operation:
-//           stringValue: findPets
+//       api.operation: findPets
 //     httpMethod: GET
 //     uriTemplate: /api/pets
 //   - attributes:
-//       attributes:
-//         api.operation:
-//           stringValue: addPet
+//       api.operation: addPet
 //     httpMethod: POST
 //     uriTemplate: /api/pets
 //   - attributes:
-//       attributes:
-//         api.operation:
-//           stringValue: findPetById
+//       api.operation: findPetById
 //     httpMethod: GET
 //     uriTemplate: /api/pets/{id}
 //   - attributes:
-//       attributes:
-//         api.operation:
-//           stringValue: deletePet
+//       api.operation: deletePet
 //     httpMethod: DELETE
 //     uriTemplate: /api/pets/{id}
 //   api_keys:
@@ -438,11 +422,6 @@ type HTTPAPISpecReference struct {
 func (m *HTTPAPISpecReference) Reset()                    { *m = HTTPAPISpecReference{} }
 func (*HTTPAPISpecReference) ProtoMessage()               {}
 func (*HTTPAPISpecReference) Descriptor() ([]byte, []int) { return fileDescriptorApiSpec, []int{3} }
-
-// +kubetype-gen
-// +kubetype-gen:groupVersion=config.istio.io/v1alpha2
-// +genclient
-// +k8s:deepcopy-gen=true
 
 // HTTPAPISpecBinding defines the binding between HTTPAPISpecs and one or more
 // IstioService. For example, the following establishes a binding

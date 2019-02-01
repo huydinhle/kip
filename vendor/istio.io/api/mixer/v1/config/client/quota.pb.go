@@ -19,11 +19,6 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
-// +kubetype-gen
-// +kubetype-gen:groupVersion=config.istio.io/v1alpha2
-// +genclient
-// +k8s:deepcopy-gen=true
-
 // Determines the quotas used for individual requests.
 type QuotaSpec struct {
 	// A list of Quota rules.
@@ -221,11 +216,6 @@ type Quota struct {
 func (m *Quota) Reset()                    { *m = Quota{} }
 func (*Quota) ProtoMessage()               {}
 func (*Quota) Descriptor() ([]byte, []int) { return fileDescriptorQuota, []int{4} }
-
-// +kubetype-gen
-// +kubetype-gen:groupVersion=config.istio.io/v1alpha2
-// +genclient
-// +k8s:deepcopy-gen=true
 
 // QuotaSpecBinding defines the binding between QuotaSpecs and one or more
 // IstioService.

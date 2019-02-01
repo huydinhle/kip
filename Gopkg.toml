@@ -49,10 +49,14 @@ required = [
   branch = "master" #osdk_branch_annotation
   # version = "=v0.3.0" #osdk_version_annotation
 
+# [[constraint]]
+#   name = "istio.io/api"
+#   source = "https://github.com/rcernich/istio-api.git"
+#   branch = "istio-8772"
+
 [[constraint]]
-  name = "istio.io/api"
-  source = "https://github.com/rcernich/istio-api.git"
-  branch = "istio-8772"
+  name = "github.com/aspenmesh/istio-client-go"
+  branch = "master"
 
 [prune]
   go-tests = true
