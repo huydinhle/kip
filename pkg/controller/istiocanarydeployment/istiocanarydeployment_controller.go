@@ -6,9 +6,12 @@ import (
 	"fmt"
 	logr "github.com/go-logr/logr"
 	appv1alpha1 "github.com/huydinhle/kip/pkg/apis/app/v1alpha1"
+	istionetworking "istio.io/api/networking/v1alpha3"
 	// istiov1alpha3 "istio.io/api/kube/apis/networking/v1alpha3"
-	istioclient "github.com/aspenmesh/istio-client-go/pkg/client/clientset/versioned"
-	istiov1alpha3 "istio.io/api/networking/v1alpha3"
+	// istioclient "github.com/aspenmesh/istio-client-go/pkg/client/clientset/versioned"
+	// istiov1alpha3 "istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pilot/pkg/config/kube/crd"
+	"istio.io/istio/pilot/pkg/model"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -143,13 +146,13 @@ func (r *ReconcileIstioCanaryDeployment) Reconcile(request reconcile.Request) (r
 			return reconcile.Result{}, err
 		}
 
-		//update VirtualService
-		istioClient, err := istioclient.NewForConfig(r.config)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
+		// //update VirtualService
+		// istioClient, err := istioclient.NewForConfig(r.config)
+		// if err != nil {
+		// 	return reconcile.Result{}, err
+		// }
 
-		err = updateVirtualService(istioClient, instance, reqLogger, r.scheme)
+		err = updateVirtualService(instance, reqLogger)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
@@ -261,34 +264,36 @@ func createDeploymentAndService(client client.Client, instance *appv1alpha1.Isti
 	return nil
 }
 
-func updateVirtualService(client *istioclient.Clientset, instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger, scheme *runtime.Scheme) error {
-	name := instance.Spec.VSName
-	namespace := instance.Namespace
+func updateVirtualService(instance *appv1alpha1.IstioCanaryDeployment, reqLogger logr.Logger) error {
 
-	vsClient := client.NetworkingV1alpha3().VirtualServices(namespace)
-
-	reqLogger.Info("Getting the linked VirtualService", "Namespace", namespace, "Name", name)
-	foundVS, err := vsClient.Get(name, metav1.GetOptions{})
+	reqLogger.Info("Updating Service Flow")
+	client, err := crd.NewClient("", "", model.IstioConfigTypes, "")
 	if err != nil {
 		return err
 	}
 
-	reqLogger.Info("Updating the linked VirtualService", "Namespace", namespace, "Name", name)
-	fmt.Println("foundVS is ")
-	fmt.Printf("foundVS = %+v\n", foundVS)
-
-	if foundVS.Labels == nil {
-		foundVS.Labels = make(map[string]string)
+	// client.Get(typ, name, namespace string) (config *Config, exists bool)
+	vsConfig, exist := client.Get(model.VirtualService.Type, instance.Spec.VSName, instance.Namespace)
+	if !exist {
+		return fmt.Errorf("the virtual service %s didn't exist", instance.Spec.VSName)
 	}
-	foundVS.Labels["kip"] = "canary"
-	// fmt.Println("matchhhhhhhh is", foundVS.Spec.Http[0].Match[0].Uri)
-	foundVS.Spec.Http[0].Match[0].Uri.MatchType = &istiov1alpha3.StringMatch_Prefix{Prefix: "/"}
 
-	foundVS, err = vsClient.Update(foundVS)
+	vs, ok := vsConfig.Spec.(*istionetworking.VirtualService)
+	if !ok { // should never happen
+		return fmt.Errorf("in not a virtual service: %#v", vsConfig)
+	}
+
+	// testing for fun
+	vs.Http[0].Timeout.Seconds = 120
+
+	if vsConfig.ConfigMeta.Labels == nil {
+		vsConfig.ConfigMeta.Labels = make(map[string]string)
+	}
+	vsConfig.ConfigMeta.Labels["kip"] = "canary"
+	_, err = client.Update(*vsConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("Can't update the virtual service %s", vsConfig.ConfigMeta.Name)
 	}
-
 	return nil
 }
 
